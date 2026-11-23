@@ -1,0 +1,138 @@
+name: Dev Docker Image
+
+on:
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dev-image-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    if: github.repository == 'domsvoboda/svjis2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
+
+      - name: Install locked dependencies
+        run: uv sync --locked --python 3.14
+
+      - name: Run Django tests
+        working-directory: svjis
+        run: uv run --no-sync python manage.py test articles.tests
+
+      - name: Install Chromium and compile translations
+        working-directory: svjis
+        run: |
+          if ! command -v msgfmt >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y gettext
+          fi
+          uv run --no-sync playwright install --with-deps chromium
+          uv run --no-sync python manage.py compilemessages
+
+      - name: Run desktop and mobile browser tests
+        working-directory: svjis
+        run: |
+          uv run --no-sync python manage.py test \
+            articles.tests_playwright.test_desktop.DesktopTests \
+            articles.tests_playwright.test_mobile.MobileTests
+
+  publish:
+    needs: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/domsvoboda/svjis2
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_DB: svjis_ci
+          POSTGRES_USER: svjis_ci
+          POSTGRES_PASSWORD: svjis_ci
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U svjis_ci -d svjis_ci"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the application image
+        run: |
+          docker build --pull \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --tag "${IMAGE}:${GITHUB_SHA}" .
+
+      - name: Verify startup and schema upgrade on PostgreSQL
+        env:
+          POSTGRES_PORT: ${{ job.services.postgres.ports['5432'] }}
+        run: |
+          settings="${RUNNER_TEMP}/svjis-ci-settings.py"
+          cat > "$settings" <<'PY'
+          import os
+
+          ALLOWED_HOSTS = ['127.0.0.1']
+          EMAIL_BACKEND = 'django.core.mail.backends.dummy.EmailBackend'
+          DATABASES = {
+              'default': {
+                  'ENGINE': 'django.db.backends.postgresql',
+                  'HOST': '127.0.0.1',
+                  'PORT': os.environ['POSTGRES_PORT'],
+                  'NAME': 'svjis_ci',
+                  'USER': 'svjis_ci',
+                  'PASSWORD': 'svjis_ci',
+              },
+          }
+          PY
+          chmod 644 "$settings"
+          container_args=(
+            --network host --env POSTGRES_PORT
+            --mount "type=bind,source=${settings},target=/app/svjis/svjis/local_settings.py,readonly"
+          )
+          tag="${IMAGE}:${GITHUB_SHA}"
+          # Start from the articles schema used by the current dev server.
+          docker run --rm "${container_args[@]}" "$tag" \
+            python /app/svjis/manage.py migrate articles 0012 --noinput
+          docker run -d --name svjis-ci-app "${container_args[@]}" "$tag"
+          curl --fail --silent --show-error --retry 20 --retry-connrefused \
+            --retry-delay 1 --max-time 5 --output /dev/null http://127.0.0.1:8000/
+          docker exec svjis-ci-app python /app/svjis/manage.py migrate --check
+
+      - name: Show application container logs
+        if: failure()
+        run: |
+          if docker container inspect svjis-ci-app >/dev/null 2>&1; then
+            docker logs svjis-ci-app
+          fi
+
+      - name: Publish and verify the commit image in GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          trap 'docker logout ghcr.io >/dev/null' EXIT
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          tag="${IMAGE}:${GITHUB_SHA}"
+          docker push "$tag"
+          digest=$(docker buildx imagetools inspect --format '{{.Manifest.Digest}}' "$tag")
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          printf '### Published dev image\n\n- Tag: `%s`\n- Pinned image: `%s@%s`\n' \
+            "$tag" "$IMAGE" "$digest" | tee -a "$GITHUB_STEP_SUMMARY"

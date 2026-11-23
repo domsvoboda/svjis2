@@ -90,6 +90,14 @@ python manage.py svjis_send_messages
 
 During application testing, you can run it manually. In a production setup, you need to configure a system scheduler (like cron) to run it at certain intervals (for example, every 5 minutes).
 
+### 3.3 News and Events
+
+In **Redaction → News**, create a plain-text update or add optional event details such as the title, date, time, location, and a link to an article or document. The event date is separate from the update's creation date.
+
+Enable **Published** to make an update public. **Publish from** is inclusive and **Display until** is exclusive; either can be left empty. When both are set, the end must be later than the start. The form uses the application's local time zone (`TIME_ZONE` by default).
+
+The news list shows Draft, Scheduled, Active, and Expired updates. The public panel checks the publication window on each request, so no scheduled job is needed. Expired updates remain editable and can be published again by clearing or changing the expiry date. Existing updates keep their HTML formatting until their body text is edited; new or edited text is displayed as plain text.
+
 ## 4 Docker
 
 You can also use `docker compose` to run svjis application. Here is an example of SVJIS with Postgres.
@@ -121,6 +129,17 @@ If you want to use different database or setup any other parameters modify local
 
 > [!NOTE]
 > By default application in container runs with `DEBUG = True`. If you want to run application in production edit `./svjis2-data/local_settings.py` file and override at least `SECRET_KEY`, `ALLOWED_HOSTS` and set `DEBUG = False`. You will aslo need `Nginx` or `Apache` reverse proxy which will be serving static files and will take care about tls certificate.
+
+### 4.1 Development image for the `domsvoboda` fork
+
+Push changes to the fork's `dev` branch to run Django and browser tests. The **Dev Docker Image** workflow then builds the image, verifies startup and migrations on a disposable PostgreSQL database, and publishes `ghcr.io/domsvoboda/svjis2:<full-commit-sha>`. The workflow summary also lists the image by its immutable digest. Use that digest to pull the exact build:
+
+```bash
+IMAGE_DIGEST='sha256:…'  # Replace with the full digest from the workflow summary.
+docker pull "ghcr.io/domsvoboda/svjis2@${IMAGE_DIGEST}"
+```
+
+GHCR packages start private. For a private image, authenticate with an account and token that have read access to the package before pulling it. The workflow does not deploy, write to a running server, or update a `latest` tag. Before deploying to an existing dev instance, back up its database and plan to refresh the mounted static files with `collectstatic`.
 
 ## 5 Troubleshooting
 

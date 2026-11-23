@@ -1,4 +1,5 @@
 # Django project
+/svjis/svjis/local_settings.py
 /svjis/media/
 /svjis/playwright_output/
 /svjis/static/
