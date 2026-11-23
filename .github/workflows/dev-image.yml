@@ -47,6 +47,15 @@ jobs:
             articles.tests_playwright.test_desktop.DesktopTests \
             articles.tests_playwright.test_mobile.MobileTests
 
+      - name: Save screenshots if browser tests fail
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dev-browser-screenshots
+          path: svjis/playwright_output/
+          if-no-files-found: ignore
+          retention-days: 7
+
   publish:
     needs: tests
     runs-on: ubuntu-latest

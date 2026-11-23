@@ -35,15 +35,9 @@ def scrshot(page, path, full_height=False):
 
 
 def click_link_in_row(page, text_to_find, i):
-    rows = page.query_selector_all("table tr")
-
-    for __, row in enumerate(rows):
-        if text_to_find in row.inner_text():
-            links = row.query_selector_all("a")
-            if len(links) >= i:
-                links[i].click()
-                page.wait_for_load_state('load')
-                break
+    row_links = page.get_by_role('row').filter(has_text=text_to_find).get_by_role('link')
+    row_links.nth(i).click()
+    page.wait_for_load_state('load')
 
 
 def show_menu(page):
