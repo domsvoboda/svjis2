@@ -8,16 +8,22 @@
 <form action="{% url 'redaction_news_save' %}" method="post">
     {% csrf_token %}
     <input type="hidden" name="pk" value="{{ pk }}">
-    <p>
-        <label class="label" for="{{ form.body.auto_id }}">{{ form.body.label }}</label>
-        {{ form.body }}
-    </p>
+    {{ form.non_field_errors }}
     <fieldset>
-        <legend>{% translate 'Properties' %}</legend>
-        <p>
-            <label class="common-label" for="{{ form.published.auto_id }}">{{ form.published.label }}</label>
-            {{ form.published }}
-        </p>
+        <legend>{% translate 'News content' %}</legend>
+        {% include 'news-form-field.html' with field=form.body label_class='label' only %}
+    </fieldset>
+    <fieldset>
+        <legend>{% translate 'Event information (optional)' %}</legend>
+        {% for field in form.event_fields %}
+            {% include 'news-form-field.html' with field=field only %}
+        {% endfor %}
+    </fieldset>
+    <fieldset>
+        <legend>{% translate 'Publication settings' %}</legend>
+        {% for field in form.publication_fields %}
+            {% include 'news-form-field.html' with field=field only %}
+        {% endfor %}
     </fieldset>
     <p>
         <input class="black-submit" id="submit" type="submit" value="{% translate 'Save' %}" />

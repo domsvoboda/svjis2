@@ -1,8 +1,9 @@
 import os
 
 from . import managers
-from .model_utils import unique_slugify, get_asset_icon, get_asset_type, get_age_in_minutes
+from .model_utils import unique_slugify, get_asset_icon, get_asset_type, get_age_in_minutes, validate_news_event_link
 from datetime import date
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.conf import settings
 from django.contrib.auth.models import User, Group
@@ -166,14 +167,55 @@ class News(models.Model):
     author = models.ForeignKey(User, on_delete=models.CASCADE)
     created_date = models.DateTimeField(auto_now_add=True)
     published = models.BooleanField(_("Published"), default=False)
-    body = models.TextField(_("Body"))
+    body = models.TextField(_("Body"), blank=True)
+    # Only pre-existing bodies retain their original HTML rendering until edited.
+    body_is_legacy_html = models.BooleanField(default=False, editable=False)
+    event_title = models.CharField(_("Event title"), max_length=150, blank=True, null=True)
+    event_date = models.DateField(_("Event date"), blank=True, null=True)
+    event_start_time = models.TimeField(_("Start time"), blank=True, null=True)
+    event_end_time = models.TimeField(_("End time"), blank=True, null=True)
+    event_location = models.CharField(_("Event location"), max_length=250, blank=True, null=True)
+    event_link = models.CharField(
+        _("Related article or link"), max_length=2048, blank=True, null=True, validators=[validate_news_event_link]
+    )
+    publish_at = models.DateTimeField(_("Publish from"), blank=True, null=True)
+    expires_at = models.DateTimeField(_("Display until"), blank=True, null=True)
+
+    objects = managers.NewsQuerySet.as_manager()
 
     def __str__(self):
-        return f"News: {self.body}"
+        return f"News: {self.event_title or self.body}"
+
+    @property
+    def publication_status_label(self):
+        return managers.NewsPublicationStatus(self.publication_status).label
+
+    @property
+    def safe_event_link(self):
+        if self.event_link:
+            try:
+                validate_news_event_link(self.event_link)
+            except ValidationError:
+                return None
+            return self.event_link
+        return None
 
     class Meta:
         ordering = ['-id']
         permissions = (("svjis_edit_article_news", _("Can edit News")),)
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(publish_at__isnull=True)
+                    | models.Q(expires_at__isnull=True)
+                    | models.Q(expires_at__gt=models.F('publish_at'))
+                ),
+                name='news_valid_publication_window',
+                violation_error_message=_(
+                    "The expiry date and time must be later than the publication date and time."
+                ),
+            )
+        ]
 
 
 class UsefulLink(models.Model):

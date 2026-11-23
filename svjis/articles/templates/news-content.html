@@ -1,0 +1,19 @@
+{% load i18n %}
+{% if news.body %}{% if news.body_is_legacy_html %}{{ news.body|safe }}{% else %}{{ news.body|linebreaksbr }}{% endif %}{% endif %}
+{% with event_link=news.safe_event_link %}
+    {% if news.event_title or news.event_date or news.event_start_time or news.event_end_time or news.event_location or event_link %}
+        <div class="news-event">
+            {% if news.event_title %}<div><strong>{{ news.event_title }}</strong></div>{% endif %}
+            {% if news.event_date %}
+                <div>{% translate 'Date' %}: <time datetime="{{ news.event_date|date:'Y-m-d' }}">{{ news.event_date|date:'SHORT_DATE_FORMAT' }}</time></div>
+            {% endif %}
+            {% if news.event_start_time %}
+                <div>{% translate 'Time' %}: {{ news.event_start_time|time:'H:i' }}{% if news.event_end_time %}–{{ news.event_end_time|time:'H:i' }}{% endif %}</div>
+            {% elif news.event_end_time %}
+                <div>{% translate 'End time' %}: {{ news.event_end_time|time:'H:i' }}</div>
+            {% endif %}
+            {% if news.event_location %}<div>{% translate 'Location' %}: {{ news.event_location }}</div>{% endif %}
+            {% if event_link %}<div>{% translate 'Details' %}: <a href="{{ event_link }}">{% translate 'Open link' %}</a></div>{% endif %}
+        </div>
+    {% endif %}
+{% endwith %}

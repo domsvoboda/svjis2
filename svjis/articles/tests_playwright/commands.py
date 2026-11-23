@@ -1,4 +1,5 @@
-from datetime import datetime
+from datetime import datetime, timedelta
+from django.utils import timezone
 from django.utils.translation import gettext as _
 from playwright.sync_api import expect
 
@@ -504,35 +505,46 @@ def search_for_article_in_redaction(cls, page):
 
 
 def create_news(cls, page):
+    today = timezone.localdate()
+    event_date = (today + timedelta(days=1)).isoformat()
+    title = 'Shromáždění vlastníků'
+    body = 'Garáže budou v sobotu uzavřeny kvůli úklidu.'
     data = [
+        {'body': body},
         {
-            'body': '<div>Oznámení termínu</div>'
-            '<div style="font-size:large">Čištění garáží</div>'
-            '<div style="font-size:larger;color:red">Ve dnech 18.3 a 19.3.2021</div>'
-            '<div>Více informací: <a href="#">v článku</a></div>',
-            'publish': True,
-        },
-        {
-            'body': '<div>Oznámení termínu konání</div>'
-            '<div style="font-size:large;">Shromáždění vlastníků</div>'
-            '<div style="font-size:larger;color:red">Datum: 2. dubna 2021</div>'
-            '<div>Čas: 18:00-21:00</div>'
-            '<div>Místo: <a href="#" target="blank">Toulcův dvůr</a></div>'
-            '<div>Program a podklady: <a href="#">v&nbsp;článku</a></div>',
-            'publish': True,
+            'event_title': title,
+            'event_date': event_date,
+            'event_start_time': '18:00',
+            'event_end_time': '21:00',
+            'event_location': 'Společenská místnost',
+            'event_link': '/article/vydej-novych-cipu/',
+            'publish_at': f'{today - timedelta(days=1):%Y-%m-%d}T12:00',
+            'expires_at': f'{today + timedelta(days=2):%Y-%m-%d}T12:00',
         },
     ]
-    for e in data:
+    for fields in data:
         menu(page, _('Redaction'), _('News'), True)
         scrshot(page, get_filename(cls, 'redaction-news'))
         page.click('text=' + _('Create new news'))
-        page.fill('[id=id_body]', e['body'])
-        if e['publish']:
-            page.check('[id=id_published]')
+        for name, value in fields.items():
+            page.locator(f'#id_{name}').fill(value)
+        page.check('[id=id_published]')
         scrshot(page, get_filename(cls, 'redaction-news'))
         page.click('id=submit')
         scrshot(page, get_filename(cls, 'redaction-news'))
         expect(page.locator('#msg-info').get_by_text(_('Saved'))).to_be_visible()
+        row = page.get_by_role('row').filter(has_text=fields.get('event_title', body))
+        expect(row.get_by_text(_('Active'))).to_be_visible()
+
+    go_to_page(cls, page, '/')
+    event = page.locator('.news_box .news-event')
+    expect(event.get_by_text(title)).to_be_visible()
+    expect(event.locator(f'time[datetime="{event_date}"]')).to_be_visible()
+    expect(event.get_by_text('18:00–21:00', exact=False)).to_be_visible()
+    expect(event.get_by_text('Společenská místnost', exact=False)).to_be_visible()
+    expect(event.get_by_role('link')).to_have_attribute('href', '/article/vydej-novych-cipu/')
+    expect(page.locator('.news_box').get_by_text(body)).to_be_visible()
+    assert event.evaluate('(element) => element.scrollWidth <= element.clientWidth')
 
 
 def create_survey(cls, page):

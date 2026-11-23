@@ -335,39 +335,33 @@ def redaction_article_asset_delete_view(request, pk):
 @permission_required(svjis_edit_article_news)
 @require_GET
 def redaction_news_view(request):
-    news_list = models.News.objects.select_related('author')
+    news_list = models.News.objects.select_related('author').with_publication_status()
     header = _("News")
 
     # Paginator
-    is_paginated = len(news_list) > getattr(settings, 'SVJIS_NEWS_PAGE_SIZE', 10)
     page = request.GET.get('page', 1)
     paginator = Paginator(news_list, per_page=getattr(settings, 'SVJIS_NEWS_PAGE_SIZE', 10))
     page_obj = paginator.get_page(page)
-    try:
-        news_list = paginator.page(page)
-    except InvalidPage:
-        news_list = paginator.page(paginator.num_pages)
 
     ctx = utils.get_context()
     ctx['aside_menu_name'] = _("Redaction")
-    ctx['is_paginated'] = is_paginated
+    ctx['is_paginated'] = page_obj.has_other_pages()
     ctx['page_obj'] = page_obj
     ctx['header'] = header
     ctx['aside_menu_items'] = get_side_menu('news', request.user)
     ctx['tray_menu_items'] = utils.get_tray_menu('redaction', request.user)
-    ctx['object_list'] = news_list
+    ctx['object_list'] = page_obj
     return render(request, "redaction_news.html", ctx)
 
 
 @permission_required(svjis_edit_article_news)
 @require_GET
 def redaction_news_edit_view(request, pk):
-    if pk:
-        a = get_object_or_404(models.News, pk=pk)
-        form = forms.NewsForm(instance=a)
-    else:
-        form = forms.NewsForm
+    instance = get_object_or_404(models.News, pk=pk) if pk else None
+    return render_news_form(request, forms.NewsForm(instance=instance), pk)
 
+
+def render_news_form(request, form, pk):
     ctx = utils.get_context()
     ctx['aside_menu_name'] = _("Redaction")
     ctx['form'] = form
@@ -381,21 +375,16 @@ def redaction_news_edit_view(request, pk):
 @require_POST
 def redaction_news_save_view(request):
     pk = int(request.POST['pk'])
-    if not pk:
-        form = forms.NewsForm(request.POST)
-    else:
-        instance = get_object_or_404(models.News, pk=pk)
-        form = forms.NewsForm(request.POST, instance=instance)
+    instance = get_object_or_404(models.News, pk=pk) if pk else None
+    form = forms.NewsForm(request.POST, instance=instance)
+    if not form.is_valid():
+        return render_news_form(request, form, pk)
 
-    if form.is_valid():
-        obj = form.save(commit=False)
-        if not pk:
-            obj.author = request.user
-        obj.save()
-        messages.info(request, _('Saved'))
-    else:
-        for error in form.errors:
-            messages.error(request, error)
+    obj = form.save(commit=False)
+    if not pk:
+        obj.author = request.user
+    obj.save()
+    messages.info(request, _('Saved'))
     return redirect(redaction_news_view)
 
 

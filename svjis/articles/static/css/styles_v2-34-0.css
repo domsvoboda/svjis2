@@ -946,6 +946,14 @@ p.contact a {
   padding: 0;
 }
 
+.news-content {
+  overflow-wrap: anywhere;
+}
+
+.news-event {
+  margin-top: 0.25em;
+}
+
 .box1_content .bg {
   border-top: 1px solid #D7F199;
   border-bottom: 1px solid #D7F199;

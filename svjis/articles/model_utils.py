@@ -1,7 +1,25 @@
 import os
 import re
+from django.core.exceptions import ValidationError
+from django.core.validators import URLValidator
 from django.template.defaultfilters import slugify
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
+
+
+validate_http_url = URLValidator(schemes=['http', 'https'])
+
+
+def validate_news_event_link(value):
+    if '\\' not in value and not any(char.isspace() or ord(char) < 32 for char in value):
+        if value.startswith('/') and not value.startswith('//'):
+            return
+        try:
+            validate_http_url(value)
+            return
+        except ValidationError:
+            pass
+    raise ValidationError(_("Enter an HTTP(S) URL or a path starting with a single slash."), code='invalid')
 
 
 def unique_slugify(instance, value, slug_field_name='slug', queryset=None, slug_separator='-'):

@@ -1376,6 +1376,72 @@ msgstr "Anaýzy"
 msgid "Data for last {} days."
 msgstr "Data za posledních {} dní."
 
+msgid "Draft"
+msgstr "Koncept"
+
+msgid "Scheduled"
+msgstr "Naplánováno"
+
+msgid "Expired"
+msgstr "Expirováno"
+
+msgid "Status"
+msgstr "Stav"
+
+msgid "News content"
+msgstr "Obsah aktuality"
+
+msgid "Event information (optional)"
+msgstr "Informace o události (volitelné)"
+
+msgid "Publication settings"
+msgstr "Nastavení zveřejnění"
+
+msgid "Event title"
+msgstr "Název události"
+
+msgid "Event date"
+msgstr "Datum konání"
+
+msgid "Start time"
+msgstr "Čas začátku"
+
+msgid "End time"
+msgstr "Čas konce"
+
+msgid "Event location"
+msgstr "Místo konání"
+
+msgid "Related article or link"
+msgstr "Související článek / odkaz"
+
+msgid "Publish from"
+msgstr "Zveřejnit od"
+
+msgid "Display until"
+msgstr "Zobrazovat do"
+
+msgid "Location"
+msgstr "Místo"
+
+msgid "Details"
+msgstr "Podrobnosti"
+
+msgid "Open link"
+msgstr "Otevřít odkaz"
+
+msgid "Enter an HTTP(S) URL or a path starting with a single slash."
+msgstr "Zadejte adresu HTTP(S) nebo cestu začínající jedním lomítkem."
+
+msgid "This update retains its original HTML. If you change the body, it will be displayed as plain text."
+msgstr "Tato aktualita má původní formátování HTML. Pokud její text změníte, zobrazí se jako prostý text."
+
+msgid "Enter a body or at least one event detail."
+msgstr "Zadejte text aktuality nebo alespoň jeden údaj o události."
+
+msgid "The expiry date and time must be later than the publication date and time."
+msgstr "Konec zveřejnění musí být později než jeho začátek."
+
 #~ msgid "Select the entranance (if makes sense)"
 #~ msgstr "Vyberte vchod (pokud to dává smysl)"
 

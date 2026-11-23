@@ -1,5 +1,6 @@
 from django import forms
 from django.contrib.auth.models import User, Group
+from django.utils.text import normalize_newlines
 from django.utils.translation import gettext_lazy as _
 from . import models
 from tinymce.widgets import TinyMCE
@@ -83,18 +84,68 @@ class ArticleCommentForm(forms.ModelForm):
         }
 
 
+NEWS_EVENT_FIELDS = ('event_title', 'event_date', 'event_start_time', 'event_end_time', 'event_location', 'event_link')
+NEWS_PUBLICATION_FIELDS = ('published', 'publish_at', 'expires_at')
+
+
 class NewsForm(forms.ModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['body'].strip = False
+        if self.instance.body_is_legacy_html:
+            self.fields['body'].help_text = _(
+                "This update retains its original HTML. If you change the body, it will be displayed as plain text."
+            )
+
+    @property
+    def event_fields(self):
+        return [self[name] for name in NEWS_EVENT_FIELDS]
+
+    @property
+    def publication_fields(self):
+        return [self[name] for name in NEWS_PUBLICATION_FIELDS]
+
+    def clean(self):
+        cleaned_data = super().clean()
+        if not self.errors and not cleaned_data['body'].strip():
+            if not any(cleaned_data.get(name) for name in NEWS_EVENT_FIELDS):
+                raise forms.ValidationError(_("Enter a body or at least one event detail."))
+        return cleaned_data
+
+    def save(self, commit=True):
+        if not self.errors and self.instance.body_is_legacy_html:
+            old_body = self.initial['body']
+            if normalize_newlines(old_body) == normalize_newlines(self.instance.body):
+                self.instance.body = old_body
+            else:
+                self.instance.body_is_legacy_html = False
+        return super().save(commit=commit)
+
     class Meta:
         model = models.News
-        fields = (
-            "body",
-            "published",
-        )
+        fields = ('body', *NEWS_EVENT_FIELDS, *NEWS_PUBLICATION_FIELDS)
+        # Keep the single native input even in Django admin, which defaults to a split field.
+        field_classes = {'publish_at': forms.DateTimeField, 'expires_at': forms.DateTimeField}
         widgets = {
-            'body': forms.widgets.Textarea(
-                attrs={'class': 'common-textarea', 'rows': '20', 'cols': '80', 'wrap': True}
+            'body': forms.widgets.Textarea(attrs={'class': 'common-textarea', 'rows': '7', 'wrap': True}),
+            'event_title': forms.widgets.TextInput(attrs={'class': 'common-input full-width'}),
+            'event_date': forms.widgets.DateInput(format='%Y-%m-%d', attrs={'class': 'common-input', 'type': 'date'}),
+            'event_start_time': forms.widgets.TimeInput(
+                format='%H:%M', attrs={'class': 'common-input', 'type': 'time'}
             ),
+            'event_end_time': forms.widgets.TimeInput(format='%H:%M', attrs={'class': 'common-input', 'type': 'time'}),
+            'event_location': forms.widgets.TextInput(attrs={'class': 'common-input full-width'}),
+            'event_link': forms.widgets.TextInput(attrs={'class': 'common-input full-width', 'inputmode': 'url'}),
             'published': forms.widgets.CheckboxInput(attrs={'class': 'common-input-chck'}),
+            'publish_at': forms.widgets.DateTimeInput(
+                format='%Y-%m-%dT%H:%M', attrs={'class': 'common-input', 'type': 'datetime-local'}
+            ),
+            'expires_at': forms.widgets.DateTimeInput(
+                format='%Y-%m-%dT%H:%M', attrs={'class': 'common-input', 'type': 'datetime-local'}
+            ),
+        }
+        help_texts = {
+            'event_link': _("Enter an HTTP(S) URL or a path starting with a single slash."),
         }
 
 

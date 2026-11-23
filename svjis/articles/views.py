@@ -132,7 +132,7 @@ def main_filtered_view(request, menu):
     page_parameter = '' if search == '' else f"search={search}"
 
     # News
-    news_list = models.News.objects.filter(published=True)
+    news_list = models.News.objects.active()
 
     # Survey
     survey_list = models.Survey.objects.filter(published=True)
